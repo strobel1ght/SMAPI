@@ -59,6 +59,9 @@ namespace StardewModdingAPI
 
         /// <summary>The <see cref="Context.ScreenId"/> value which should appear in the SMAPI log, if any.</summary>
         internal static int? LogScreenId { get; set; }
+
+        /// <summary>SMAPI's current raw semantic version.</summary>
+        internal static string RawApiVersion = "3.9.5";
     }
 
     /// <summary>Contains SMAPI's constants and assumptions.</summary>
@@ -71,7 +74,7 @@ namespace StardewModdingAPI
         ** Public
         ****/
         /// <summary>SMAPI's current semantic version.</summary>
-        public static ISemanticVersion ApiVersion { get; } = new Toolkit.SemanticVersion("3.9.5");
+        public static ISemanticVersion ApiVersion { get; } = new Toolkit.SemanticVersion(EarlyConstants.RawApiVersion);
 
         /// <summary>The minimum supported version of Stardew Valley.</summary>
         public static ISemanticVersion MinimumGameVersion { get; } = new GameVersion("1.5.4");
@@ -295,6 +298,21 @@ namespace StardewModdingAPI
             }
 
             return new PlatformAssemblyMap(targetPlatform, removeAssemblyReferences.ToArray(), targetAssemblies.ToArray());
+        }
+
+        /// <summary>Get whether the game assembly was patched by Stardew64Installer.</summary>
+        /// <param name="version">The version of Stardew64Installer which was applied to the game assembly, if any.</param>
+        internal static bool IsPatchedByStardew64Installer(out ISemanticVersion version)
+        {
+            PropertyInfo property = typeof(Game1).GetProperty("Stardew64InstallerVersion");
+            if (property == null)
+            {
+                version = null;
+                return false;
+            }
+
+            version = new SemanticVersion((string)property.GetValue(null));
+            return true;
         }
 
 

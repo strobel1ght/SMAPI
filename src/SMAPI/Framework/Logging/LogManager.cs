@@ -283,16 +283,16 @@ namespace StardewModdingAPI.Framework.Logging
         /// <param name="customSettings">The custom SMAPI settings.</param>
         public void LogIntro(string modsPath, IDictionary<string, object> customSettings)
         {
-            // get platform label
-            string platformLabel = EnvironmentUtility.GetFriendlyPlatformName(Constants.Platform);
-            if ((Constants.GameFramework == GameFramework.Xna) != (Constants.Platform == Platform.Windows))
-                platformLabel += $" with {Constants.GameFramework}";
-#if SMAPI_FOR_WINDOWS_64BIT_HACK
-            platformLabel += " 64-bit hack";
-#endif
+            // log platform & patches
+            {
+                this.Monitor.Log($"SMAPI {Constants.ApiVersion} with Stardew Valley {Constants.GameVersion} on {EnvironmentUtility.GetFriendlyPlatformName(Constants.Platform)}", LogLevel.Info);
 
-            // init logging
-            this.Monitor.Log($"SMAPI {Constants.ApiVersion} with Stardew Valley {Constants.GameVersion} on {platformLabel}", LogLevel.Info);
+                string[] patchLabels = this.GetPatchLabels().ToArray();
+                if (patchLabels.Any())
+                    this.Monitor.Log($"Detected custom version: {string.Join(", ", patchLabels)}", LogLevel.Info);
+            }
+
+            // log basic info
             this.Monitor.Log($"Mods go here: {modsPath}", LogLevel.Info);
             if (modsPath != Constants.DefaultModsPath)
                 this.Monitor.Log("(Using custom --mods-path argument.)");
@@ -407,6 +407,20 @@ namespace StardewModdingAPI.Framework.Logging
 
             // forward to monitor
             gameMonitor.Log(message, level);
+        }
+
+        /// <summary>Get human-readable labels to log for detected SMAPI and Stardew Valley customizations.</summary>
+        private IEnumerable<string> GetPatchLabels()
+        {
+            // custom game framework
+            if (EarlyConstants.IsWindows64BitHack)
+                yield return $"running 64-bit SMAPI with {Constants.GameFramework}";
+            else if ((Constants.GameFramework == GameFramework.Xna) != (Constants.Platform == Platform.Windows))
+                yield return $"running {Constants.GameFramework}";
+
+            // patched by Stardew64Installer
+            if (Constants.IsPatchedByStardew64Installer(out ISemanticVersion patchedByVersion))
+                yield return $"patched by Stardew64Installer {patchedByVersion}";
         }
 
         /// <summary>Write a summary of mod warnings to the console and log.</summary>

@@ -263,10 +263,7 @@ namespace StardewModdingAPI.Framework
                 });
 
                 // set window titles
-                this.SetWindowTitles(
-                    game: $"Stardew Valley {Constants.GameVersion} - running SMAPI {Constants.ApiVersion}",
-                    smapi: $"SMAPI {Constants.ApiVersion} - running Stardew Valley {Constants.GameVersion}"
-                );
+                this.UpdateWindowTitles();
             }
             catch (Exception ex)
             {
@@ -280,10 +277,7 @@ namespace StardewModdingAPI.Framework
             this.LogManager.LogSettingsHeader(this.Settings);
 
             // set window titles
-            this.SetWindowTitles(
-                game: $"Stardew Valley {Constants.GameVersion} - running SMAPI {Constants.ApiVersion}",
-                smapi: $"SMAPI {Constants.ApiVersion} - running Stardew Valley {Constants.GameVersion}"
-            );
+            this.UpdateWindowTitles();
 
             // start game
             this.Monitor.Log("Starting game...", LogLevel.Debug);
@@ -387,11 +381,7 @@ namespace StardewModdingAPI.Framework
             }
 
             // update window titles
-            int modsLoaded = this.ModRegistry.GetAll().Count();
-            this.SetWindowTitles(
-                game: $"Stardew Valley {Constants.GameVersion} - running SMAPI {Constants.ApiVersion} with {modsLoaded} mods",
-                smapi: $"SMAPI {Constants.ApiVersion} - running Stardew Valley {Constants.GameVersion} with {modsLoaded} mods"
-            );
+            this.UpdateWindowTitles();
         }
 
         /// <summary>Raised after the game finishes initializing.</summary>
@@ -1238,13 +1228,23 @@ namespace StardewModdingAPI.Framework
             return !issuesFound;
         }
 
-        /// <summary>Set the window titles for the game and console windows.</summary>
-        /// <param name="game">The game window text.</param>
-        /// <param name="smapi">The SMAPI window text.</param>
-        private void SetWindowTitles(string game, string smapi)
+        /// <summary>Set the titles for the game and console windows.</summary>
+        private void UpdateWindowTitles()
         {
-            this.Game.Window.Title = game;
-            this.LogManager.SetConsoleTitle(smapi);
+            string smapiVersion = $"{Constants.ApiVersion}{(EarlyConstants.IsWindows64BitHack ? " [64-bit]" : "")}";
+
+            string consoleTitle = $"SMAPI {smapiVersion} - running Stardew Valley {Constants.GameVersion}";
+            string gameTitle = $"Stardew Valley {Constants.GameVersion} - running SMAPI {smapiVersion}";
+
+            if (this.ModRegistry.AreAllModsLoaded)
+            {
+                int modsLoaded = this.ModRegistry.GetAll().Count();
+                consoleTitle += $" with {modsLoaded} mods";
+                gameTitle += $" with {modsLoaded} mods";
+            }
+
+            this.Game.Window.Title = gameTitle;
+            this.LogManager.SetConsoleTitle(consoleTitle);
         }
 
         /// <summary>Asynchronously check for a new version of SMAPI and any installed mods, and print alerts to the console if an update is available.</summary>
@@ -1300,6 +1300,41 @@ namespace StardewModdingAPI.Framework
                     // show update message on next launch
                     if (updateFound != null)
                         this.LogManager.WriteUpdateMarker(updateFound.ToString(), updateUrl);
+                }
+
+                // check Stardew64Installer version
+                if (Constants.IsPatchedByStardew64Installer(out ISemanticVersion patchedByVersion))
+                {
+                    ISemanticVersion updateFound = null;
+                    string updateUrl = null;
+                    try
+                    {
+                        // fetch update check
+                        ModEntryModel response = client.GetModInfo(new[] { new ModSearchEntryModel("Steviegt6.Stardew64Installer", patchedByVersion, new[] { $"GitHub:{this.Settings.Stardew64InstallerGitHubProjectName}" }) }, apiVersion: Constants.ApiVersion, gameVersion: Constants.GameVersion, platform: Constants.Platform).Single().Value;
+                        updateFound = response.SuggestedUpdate?.Version;
+                        updateUrl = response.SuggestedUpdate?.Url ?? Constants.HomePageUrl;
+
+                        // log message
+                        if (updateFound != null)
+                            this.Monitor.Log($"You can update Stardew64Installer to {updateFound}: {updateUrl}", LogLevel.Alert);
+                        else
+                            this.Monitor.Log("   Stardew64Installer okay.");
+
+                        // show errors
+                        if (response.Errors.Any())
+                        {
+                            this.Monitor.Log("Couldn't check for a new version of Stardew64Installer. This won't affect your game, but you may not be notified of new versions if this keeps happening.", LogLevel.Warn);
+                            this.Monitor.Log($"Error: {string.Join("\n", response.Errors)}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        this.Monitor.Log("Couldn't check for a new version of Stardew64Installer. This won't affect your game, but you won't be notified of new versions if this keeps happening.", LogLevel.Warn);
+                        this.Monitor.Log(ex is WebException && ex.InnerException == null
+                            ? $"Error: {ex.Message}"
+                            : $"Error: {ex.GetLogSummary()}"
+                        );
+                    }
                 }
 
                 // check mod versions
